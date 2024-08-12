@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.19;
 
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
@@ -54,15 +54,15 @@ contract Raffle is VRFConsumerBaseV2Plus {
      * Constructor
      */
     constructor(
-        uint256 _entranceFee,
-        uint256 _interval,
-        address _vrfCoordinator,
+        uint256 entranceFee,
+        uint256 interval,
+        address vrfCoordinator,
         bytes32 gasLane,
         uint256 subscriptionId,
         uint32 callbackGasLimit
-    ) VRFConsumerBaseV2Plus(_vrfCoordinator) {
-        i_entranceFee = _entranceFee;
-        i_interval = _interval;
+    ) VRFConsumerBaseV2Plus(vrfCoordinator) {
+        i_entranceFee = entranceFee;
+        i_interval = interval;
         i_keyHash = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
@@ -150,5 +150,9 @@ contract Raffle is VRFConsumerBaseV2Plus {
      */
     function getEntranceFees() public view returns (uint256) {
         return i_entranceFee;
+    }
+
+    function getRaffleState() external view returns(RaffleState){
+        return s_raffleState;
     }
 }

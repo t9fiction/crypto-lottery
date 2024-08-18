@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {DeployRaffle} from "script/DeployRaffle.s.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {Raffle} from "src/Raffle.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 contract RaffleTest is Test {
     Raffle public raffle;
@@ -22,6 +23,21 @@ contract RaffleTest is Test {
     bytes32 gasLane;
     uint256 subscriptionId;
     uint32 callbackGasLimit;
+
+    modifier raffleEntered() {
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entranceFee}(); //Makes some player enter the raffle
+
+        /** Wait for 30 secs for the upkeep to start working.
+         ***  This will take the timestamp to the time interval we set for upkeep
+         */
+        vm.warp(block.timestamp + interval + 1);
+        /**
+         ** We are now going to manually move the block to next block
+         */
+        vm.roll(block.number + 1);
+        _;
+    }
 
     function setUp() external {
         DeployRaffle deployer = new DeployRaffle();
@@ -64,23 +80,87 @@ contract RaffleTest is Test {
         raffle.enterRaffle{value: entranceFee}(); //Makes some player enter the raffle
 
         /** Wait for 30 secs for the upkeep to start working.
-        ***  This will take the timestamp to the time interval we set for upkeep
+         ***  This will take the timestamp to the time interval we set for upkeep
          */
-        vm.warp(block.timestamp + interval + 1); 
+        vm.warp(block.timestamp + interval + 1);
         /**
          ** We are now going to manually move the block to next block
          */
-         vm.roll(block.number + 1);
+        vm.roll(block.number + 1);
         /** Set to Close
-        *** By calling perform upkeep, since it changes it to close
-        **/
+         *** By calling perform upkeep, since it changes it to close
+         **/
         raffle.performUpkeep();
         /**
-        *** Try entering Raffle
-        */
+         *** Try entering Raffle
+         */
         vm.expectRevert(Raffle.Raffle__RaffleNotOpen.selector);
         vm.prank(PLAYER);
         raffle.enterRaffle{value: entranceFee}();
         //Expecting Revert while Raffle is calculating
+    }
+
+    function testCheckUpkeepReturnsFalseIfItHasNoBalance() public {
+        /** Wait for 30 secs for the upkeep to start working.
+         ***  This will take the timestamp to the time interval we set for upkeep
+         */
+        vm.warp(block.timestamp + interval + 1);
+        /**
+         ** We are now going to manually move the block to next block
+         */
+        vm.roll(block.number + 1);
+
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+
+        assert(!upkeepNeeded);
+    }
+
+    function testCheckUpkeepReturnsFalseIfRaffleNotOpen() public raffleEntered {
+        
+        /** Set to Close
+         *** By calling perform upkeep, since it changes it to close
+         **/
+        raffle.performUpkeep();
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+        assert(!upkeepNeeded);
+    }
+
+    function testPerformUpkeepOnlyRunsIfCheckUpkeepIsTrue() public raffleEntered{
+        
+        /** Set to Close
+         *** By calling perform upkeep, since it changes it to close
+         **/
+        raffle.performUpkeep();
+    }
+
+    function testPerformUpkeepRevertsIfCheckUpkeepIsFalse() public {
+        uint256 currentBalance = 0;
+        uint256 numPlayers = 0;
+        Raffle.RaffleState rState = raffle.getRaffleState();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Raffle.Raffle__UpkeepNotNeeded.selector,
+                currentBalance,
+                numPlayers,
+                rState
+            )
+        );
+        raffle.performUpkeep();
+    }
+
+    function testPerformUpkeepUpdatesRaffleStateAndEmitsRequestId() public raffleEntered{
+        
+        /** Cheatcode to check events by factory,
+         ** Following will record logs, and then save the recordedlogs to entries of Vm array
+         */
+        vm.recordLogs();
+        raffle.performUpkeep();
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bytes32 requestId = entries[1].topics[1];
+
+        Raffle.RaffleState raffleState = raffle.getRaffleState();
+        assert(uint256(requestId) > 0);
+        assert(uint256(requestId) == 1);
     }
 }

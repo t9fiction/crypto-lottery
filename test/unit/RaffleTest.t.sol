@@ -161,6 +161,6 @@ contract RaffleTest is Test {
 
         Raffle.RaffleState raffleState = raffle.getRaffleState();
         assert(uint256(requestId) > 0);
-        assert(uint256(requestId) == 1);
+        assert(uint256(raffleState) == 1);
     }
 }
